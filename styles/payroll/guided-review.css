@@ -1,0 +1,194 @@
+.review-summary {
+  display: flex;
+  align-items: center;
+  grid-template-columns: none;
+  padding: 14px 18px;
+  border-radius: 14px;
+}
+
+.review-summary > span {
+  padding: 0 18px;
+  border-right: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  font-size: .82rem;
+}
+
+.review-summary > span:first-child { padding-left: 0; }
+.review-summary > span:last-child { border-right: 0; }
+.review-summary > span strong { color: var(--text-heading); font-family: "Plus Jakarta Sans", sans-serif; }
+.review-summary > span.review-summary--danger,
+.review-summary > span.review-summary--danger strong { color: var(--danger); }
+
+.queue-navigation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 9px 2px;
+  border-top: 1px solid var(--border-default);
+  border-bottom: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  font-size: .78rem;
+}
+
+.queue-navigation > div { display: flex; gap: 6px; }
+.queue-navigation button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 34px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--brand-primary);
+  font-weight: 650;
+  cursor: pointer;
+}
+.queue-navigation button:hover { background: var(--brand-primary-soft); }
+
+.review-continue {
+  padding: 12px 0 0;
+  display: grid;
+  gap: 8px;
+}
+.review-continue > .button {
+  min-width: 220px;
+}
+
+.blocker-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+.blocker-action-buttons {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.period-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: rgb(23 60 56 / 30%);
+}
+.dialog-card {
+  width: min(100%, 380px);
+  padding: 24px;
+  background: var(--surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-floating);
+  display: grid;
+  gap: 14px;
+}
+.dialog-card h3 {
+  margin: 0;
+}
+.dialog-card p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: .84rem;
+}
+.period-dialog__fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.period-dialog__field {
+  display: grid;
+  gap: 5px;
+  font-size: .82rem;
+  color: var(--text-secondary);
+}
+.period-dialog__field select {
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  background: #fff;
+  color: var(--text-body);
+  font-size: .9rem;
+}
+@media (max-width: 480px) {
+  .period-dialog__fields { grid-template-columns: 1fr; }
+}
+.dialog-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.arithmetic-issues {
+  margin-top: 18px;
+}
+.arithmetic-issues h3 {
+  margin: 0 0 10px;
+  font-size: .88rem;
+  color: var(--text-heading);
+}
+.tolerance-issues {
+  padding: 14px;
+  background: var(--info-soft);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+}
+.tolerance-issues > p {
+  margin: -4px 0 10px;
+  color: var(--text-secondary);
+  font-size: .78rem;
+}
+.issue-card--informational {
+  background: rgb(255 255 255 / 62%);
+}
+.issue-list {
+  display: grid;
+  gap: 8px;
+}
+.issue-card {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 14px;
+  background: var(--warning-soft);
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  font-size: .84rem;
+}
+.issue-ref {
+  font-weight: 600;
+  color: var(--text-heading);
+  white-space: nowrap;
+  min-width: 9rem;
+}
+.issue-delta {
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-heading);
+  white-space: nowrap;
+  min-width: 4rem;
+  text-align: right;
+}
+.issue-reason {
+  color: var(--text-secondary);
+  flex: 1;
+}
+
+em.muted {
+  color: var(--text-secondary);
+  font-style: normal;
+}
+
+@media (max-width: 700px) {
+  .review-summary { align-items: flex-start; flex-direction: column; gap: 7px; }
+  .review-summary > span { width: 100%; padding: 0; border-right: 0; }
+  .queue-navigation { align-items: flex-start; flex-direction: column; }
+  .queue-navigation > div { width: 100%; justify-content: flex-end; }
+  .blocker-action-buttons { flex-direction: column; }
+  .issue-card { flex-wrap: wrap; }
+  .issue-ref { min-width: 0; }
+  .issue-delta { min-width: 0; margin-left: auto; }
+}

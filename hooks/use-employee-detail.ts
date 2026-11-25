@@ -1,0 +1,12 @@
+"use client";
+import { useState } from "react";
+import { getApiError } from "@/redux/api";
+import type { ApiClientError } from "@/type/api";
+import { useCreateAliasMutation, useCreateBankAccountMutation, useDeleteAliasMutation, useGetAliasesQuery, useGetBankAccountsQuery, useGetBanksQuery, useGetEmployeeQuery, useUpdateBankAccountMutation, useUpdateEmployeeMutation, useUpdateEmployeeStatusMutation, useVerifyBankAccountMutation } from "@/redux/api/employee.rtk";
+import type { BankAccountInput, EmployeeInput, EmploymentStatus } from "@/type/employee";
+export function useEmployeeDetail(id: string) {
+  const employee = useGetEmployeeQuery(id); const banks = useGetBanksQuery(); const accounts = useGetBankAccountsQuery(id); const aliases = useGetAliasesQuery(id);
+  const [updateEmployee, employeeState] = useUpdateEmployeeMutation(); const [createAccount, accountState] = useCreateBankAccountMutation(); const [updateAccount, updateAccountState] = useUpdateBankAccountMutation(); const [verifyAccount, verifyState] = useVerifyBankAccountMutation(); const [createAlias, aliasState] = useCreateAliasMutation(); const [deleteAlias] = useDeleteAliasMutation(); const [setStatus, statusState] = useUpdateEmployeeStatusMutation(); const [error, setError] = useState<ApiClientError | null>(null);
+  async function run(action: () => Promise<unknown>) { setError(null); try { await action(); return true; } catch (reason) { setError(getApiError(reason)); return false; } }
+  return { employee, banks, accounts, aliases, error, updateIdentity: (body: EmployeeInput) => run(() => updateEmployee({ id, body }).unwrap()), addAccount: (body: BankAccountInput) => run(() => createAccount({ employeeId: id, body }).unwrap()), updateAccount: (accountId: string, body: BankAccountInput) => run(() => updateAccount({ employeeId: id, accountId, body }).unwrap()), verify: (accountId: string) => run(() => verifyAccount({ employeeId: id, accountId }).unwrap()), addAlias: (aliasName: string) => run(() => createAlias({ employeeId: id, aliasName }).unwrap()), removeAlias: (aliasId: string) => run(() => deleteAlias({ employeeId: id, aliasId }).unwrap()), changeStatus: (status: EmploymentStatus, reason: string) => run(() => setStatus({ id, status, reason }).unwrap()), busy: employeeState.isLoading || accountState.isLoading || updateAccountState.isLoading || verifyState.isLoading || aliasState.isLoading || statusState.isLoading };
+}

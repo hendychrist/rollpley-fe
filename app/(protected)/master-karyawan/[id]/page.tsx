@@ -1,0 +1,2 @@
+import { EmployeeDetail } from "@/components/employee/employee-detail";
+export default async function EmployeeDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) { const { id } = await params; const query = await searchParams; const rawReturn = typeof query.returnTo === "string" ? query.returnTo : undefined; const returnTo = rawReturn?.startsWith("/payroll/") ? rawReturn : undefined; return <EmployeeDetail id={id} returnTo={returnTo} setupAccount={query.setup === "account"} />; }

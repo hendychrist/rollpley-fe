@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+
+# Next.js build output
+.next/
+out/
+next-env.d.ts
+
+# Test / coverage
+coverage/
+playwright-report/
+test-results/
+playwright/.auth/
+
+# Cloud / deploy
+.vercel/
+
+# Local development artifacts
+.env
+.env.*
+!/.env.example
+*.log
+*.tsbuildinfo
+.DS_Store
+
+# Browser tooling
+.playwright-mcp/
+
+# Local working state
+.refactor-stash/
+handoffs/
+/tmp/
+.rollpley-progress.md
+
+# Sensitive local files
+/Default-Master/
+*.har
+*.pem
+*.key
+*.p12
+*.pfx
