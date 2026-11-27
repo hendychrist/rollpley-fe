@@ -55,7 +55,7 @@ export function SourceWarnings({ nominal, rounding, roundingTotal }: { nominal: 
 
   return <section className="resolved-queue source-warnings">
     <button type="button" className="resolved-queue__toggle source-warnings__toggle" aria-expanded={open} aria-controls={bodyId} onClick={() => setOpen((value) => !value)}>
-      <TriangleAlert aria-hidden size={16} className="source-warnings__icon" />
+      <TriangleAlert aria-hidden size={20} className="source-warnings__icon" />
       <span className="source-warnings__summary">
         <span><span className="resolved-queue__eyebrow">Peringatan sumber · {total}</span> <span className="resolved-queue__count">{counts}</span></span>
         <span className="source-warnings__hint">Tidak memblokir finalisasi. Neto tetap mengikuti angka pada PDF.</span>
@@ -63,26 +63,44 @@ export function SourceWarnings({ nominal, rounding, roundingTotal }: { nominal: 
       <span className="source-warnings__action">{open ? "Tutup detail" : "Lihat detail"}</span>
       <ChevronDown className={`resolved-queue__chevron${open ? " is-open" : ""}`} aria-hidden size={16} />
     </button>
-    {open ? <div id={bodyId} className="resolved-queue__body">
+    {/* Always mounted so it can slide up on close; inert while closed. */}
+    <div id={bodyId} className="collapse" data-open={open} inert={!open}><div className="collapse__inner">
+    <div className="resolved-queue__body">
       {filters.length > 2 ? <div className="review-filters source-warnings__filters" role="group" aria-label="Filter peringatan sumber">
         {filters.map((item) => <button key={item.id} type="button" className={filter === item.id ? "is-active" : ""} aria-pressed={filter === item.id} onClick={() => selectFilter(item.id)}>{item.label}<span>{item.count}</span></button>)}
       </div> : null}
       <p className="sr-only" role="status">{`Menampilkan ${visible.length ? start + 1 : 0}–${start + pageItems.length} dari ${visible.length} peringatan`}</p>
-      <ul className="source-warnings__list">
-        {pageItems.map(({ kind, issue, net, computed, delta }, index) => <li key={`${issue.category}-${issue.page}-${issue.row}-${start + index}`} className="source-warning">
-          <div className="source-warning__head">
-            <span className="source-warning__ref">Hal. {issue.page} · Baris {issue.row}</span>
-            {kind === "rounding"
-              ? <span className="source-warning__badge source-warning__badge--rounding">≈ Pembulatan{delta != null ? ` · ${formatSignedCurrency(delta)}` : ""}</span>
-              : <span className="source-warning__badge source-warning__badge--nominal"><TriangleAlert aria-hidden size={12} />Selisih nominal{delta != null ? ` · ${formatSignedCurrency(delta)}` : ""}</span>}
-          </div>
-          {net != null && computed != null ? <dl className="source-warning__amounts">
-            <div className="source-warning__net"><dt>Neto PDF</dt><dd>{formatCurrency(net)}</dd></div>
-            <div><dt>Gross − potongan</dt><dd>{formatCurrency(computed)}</dd></div>
-          </dl> : <p className="source-warning__reason">{issue.reason}</p>}
-        </li>)}
-      </ul>
+      {/* Audit table: stable columns, amounts right-aligned in tabular figures.
+          Neto PDF is the authoritative amount, so it is the emphasized column. */}
+      <div className="table-wrap source-warnings__table">
+        <table className="data-table">
+          <caption className="sr-only">Peringatan sumber: neto PDF dibandingkan dengan gross dikurangi potongan</caption>
+          <thead>
+            <tr>
+              <th scope="col">Lokasi</th>
+              <th scope="col" className="num">Neto PDF</th>
+              <th scope="col" className="num">Gross − potongan</th>
+              <th scope="col" className="num">Selisih</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pageItems.map(({ kind, issue, net, computed, delta }, index) => <tr key={`${issue.category}-${issue.page}-${issue.row}-${start + index}`}>
+              <td className="source-warnings__ref">Hal. {issue.page} · Baris {issue.row}</td>
+              {net != null && computed != null ? <>
+                <td className="num source-warnings__net">{formatCurrency(net)}</td>
+                <td className="num source-warnings__computed">{formatCurrency(computed)}</td>
+              </> : <td colSpan={2} className="source-warnings__reason">{issue.reason}</td>}
+              {/* Kind is shown by color plus a "≈" prefix for rounding (not color alone); filters above split the two kinds. */}
+              <td className={`num source-warnings__delta source-warnings__delta--${kind}`}>
+                {delta != null ? `${kind === "rounding" ? "≈ " : ""}${formatSignedCurrency(delta)}` : "—"}
+                {kind === "rounding" ? <span className="sr-only"> (pembulatan)</span> : null}
+              </td>
+            </tr>)}
+          </tbody>
+        </table>
+      </div>
       <RangePagination page={currentPage} pageSize={PAGE_SIZE} total={visible.length} loadingPage={null} onChange={setPage} ariaLabel="Paginasi peringatan sumber" />
-    </div> : null}
+    </div>
+    </div></div>
   </section>;
 }

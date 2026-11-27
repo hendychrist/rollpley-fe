@@ -210,7 +210,7 @@ export function BatchDetail({ id, reviewId, reviewPage = 1, reviewFilter = "all"
     <Link href="/payroll" className="back-link"><ArrowLeft size={16} />Payroll</Link>
     <header className="batch-header">
       <div>
-        <h1>{batch.period ? `${periodLabel(batch.period)} · ` : ""}{batch.unit}</h1>
+        <h1>{[batch.period ? periodLabel(batch.period) : null, batch.unit || null].filter(Boolean).join(" · ") || "Batch payroll"}</h1>
         <p>{batch.original_filename} · diperbarui {formatDateTime(batch.updated_at)}</p>
       </div>
       <StatusBadge label={BATCH_STATUS[batch.status] ?? batch.status} tone={batch.status === "finalized" ? "success" : batch.status.includes("failed") ? "danger" : "pending"} />
@@ -290,7 +290,7 @@ export function BatchDetail({ id, reviewId, reviewPage = 1, reviewFilter = "all"
       <section className="workflow-section">
         <div className="section-heading">
           <div><h2>Rekonsiliasi</h2><p>Nominal berikut dihitung oleh backend dari data sumber dan rekening yang layak.</p></div>
-          {reconciliationRefreshing ? <span className="reconciliation-loading-label" role="status"><RefreshCw className="spin" aria-hidden size={15} />Memperbarui rekonsiliasi…</span> : state.reconciliation.isError ? <StatusBadge label="Perlu dimuat ulang" tone="warning" /> : <StatusBadge label={reconciliation.finalizable ? "Siap difinalkan" : "Belum siap"} tone={reconciliation.finalizable ? "success" : "warning"} />}
+          {reconciliationRefreshing ? <span className="reconciliation-loading-label" role="status"><RefreshCw className="spin" aria-hidden size={15} />Memperbarui rekonsiliasi…</span> : state.reconciliation.isError ? <StatusBadge label="Perlu dimuat ulang" tone="warning" /> : !reconciliation.finalizable && batch.status !== "finalized" ? <StatusBadge label="Belum siap" tone="warning" /> : null /* ready is shown by the enabled Finalisasi button; a finalized batch needs no reconciliation badge */}
         </div>
         <Panel>
           <div className="metric-grid">
@@ -463,10 +463,11 @@ export function BatchDetail({ id, reviewId, reviewPage = 1, reviewFilter = "all"
                           <span className={`progress__fill progress__fill--indeterminate${isStale ? " progress__fill--paused" : ""}`} />
                         </div>
                       </div>
-                    ) : (
+                    ) : file.status === "uploaded" ? null : (
+                      // Ready is implied by the "Unduh" button; only exceptions get a status label.
                       <StatusBadge label={config.label} tone={config.tone} />
                     )}
-                    {file.status === "uploaded" ? <Button variant="secondary" onClick={() => void download(file.id, file.filename)} disabled={isDownloading}><Download size={17} />Unduh</Button> : null}
+                    {file.status === "uploaded" ? <Button variant="secondary" onClick={() => void download(file.id, file.filename)} disabled={isDownloading} aria-label={`Unduh file ${file.output_group}`}><Download size={17} aria-hidden />Unduh</Button> : null}
                   </div>
                 );
               })}

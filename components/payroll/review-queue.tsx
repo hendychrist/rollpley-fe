@@ -4,7 +4,6 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/base/button";
 import { Alert } from "@/components/base/alert";
-import { Pagination } from "@/components/base/pagination";
 import { RangePagination } from "@/components/base/range-pagination";
 import { ExceptionReview } from "@/components/payroll/exception-review";
 import { ReopenMatchDialog } from "@/components/payroll/reopen-match-dialog";
@@ -36,7 +35,7 @@ function categoryFor(match: PayrollMatch): Exclude<ReviewFilter, "all"> {
   return match.Status === "pending_account" || match.Status === "pending_bank_routing" || match.ReasonCode === "missing_destination_routing_code" ? "account" : "identity";
 }
 
-export function ReviewQueue({ matches, pendingTotal, pendingQueueLoading, batchId, period, initialActiveId, initialFilter, pendingPage, setPendingPage, pendingLoadingPage, pendingError, retryPendingPage, save, createEmployee, createError, busy, removeAlias, reopen, resolvedMatches, resolvedPage, setResolvedPage, resolvedSearch, setResolvedSearch, rejectedMatches, rejectedPage, setRejectedPage, retryRejectedPage }: { matches: PayrollMatch[]; pendingTotal: number; pendingQueueLoading: boolean; batchId: string; period?: string; initialActiveId?: string; initialFilter: ReviewFilter; pendingPage: number; setPendingPage: (page: number) => void; pendingLoadingPage: number | null; pendingError: unknown; retryPendingPage: () => void; save: (id: string, status: string, employeeId?: string, reason?: string, saveNameVariant?: boolean) => Promise<ReviewCallResult>; createEmployee: (body: EmployeeInput) => Promise<Employee | null>; createError: string | null; busy: boolean; removeAlias?: (employeeId: string, aliasId: string) => Promise<PayrollActionResult>; reopen?: (matchId: string, reason: string) => Promise<PayrollActionResult>; resolvedMatches?: { data?: { rows: PayrollMatch[]; meta: { total: number } }; isLoading: boolean; isError: boolean }; resolvedPage: number; setResolvedPage: (page: number) => void; resolvedSearch: string; setResolvedSearch: (query: string) => void; rejectedMatches: { data?: { rows: PayrollMatch[]; meta: { total: number } }; isLoading: boolean; isFetching: boolean; isError: boolean }; rejectedPage: number; setRejectedPage: (page: number) => void; retryRejectedPage: () => void }) {
+export function ReviewQueue({ matches, pendingTotal, pendingQueueLoading, batchId, period, initialActiveId, initialFilter, pendingPage, setPendingPage, pendingLoadingPage, pendingError, retryPendingPage, save, createEmployee, createError, busy, removeAlias, reopen, resolvedMatches, resolvedPage, setResolvedPage, resolvedSearch, setResolvedSearch, rejectedMatches, rejectedPage, setRejectedPage, retryRejectedPage }: { matches: PayrollMatch[]; pendingTotal: number; pendingQueueLoading: boolean; batchId: string; period?: string; initialActiveId?: string; initialFilter: ReviewFilter; pendingPage: number; setPendingPage: (page: number) => void; pendingLoadingPage: number | null; pendingError: unknown; retryPendingPage: () => void; save: (id: string, status: string, employeeId?: string, reason?: string, saveNameVariant?: boolean) => Promise<ReviewCallResult>; createEmployee: (body: EmployeeInput) => Promise<Employee | null>; createError: string | null; busy: boolean; removeAlias?: (employeeId: string, aliasId: string) => Promise<PayrollActionResult>; reopen?: (matchId: string, reason: string) => Promise<PayrollActionResult>; resolvedMatches?: { data?: { rows: PayrollMatch[]; meta: { total: number } }; isLoading: boolean; isFetching?: boolean; isError: boolean }; resolvedPage: number; setResolvedPage: (page: number) => void; resolvedSearch: string; setResolvedSearch: (query: string) => void; rejectedMatches: { data?: { rows: PayrollMatch[]; meta: { total: number } }; isLoading: boolean; isFetching: boolean; isError: boolean }; rejectedPage: number; setRejectedPage: (page: number) => void; retryRejectedPage: () => void }) {
   // The pending queue is server-filtered (status=pending, 5 rows/page).
   // `matches` already contains only pending rows for the current page.
   const pending = matches;
@@ -152,67 +151,103 @@ export function ReviewQueue({ matches, pendingTotal, pendingQueueLoading, batchI
     {pendingError != null ? <div className="range-pager-retry"><span>Gagal memuat halaman {pendingPage}.</span><Button variant="secondary" onClick={retryPendingPage}>Coba lagi</Button></div> : null}
     {notice ? <Alert tone="success">{notice}</Alert> : null}
     {showResolvedSection ? <div className="resolved-queue">
-        <button type="button" className="resolved-queue__toggle" aria-expanded={resolvedOpen} onClick={() => setResolvedOpen((value) => !value)}>
+        <button type="button" className="resolved-queue__toggle" aria-expanded={resolvedOpen} aria-controls="resolved-queue-body" onClick={() => setResolvedOpen((value) => !value)}>
           <span className="resolved-queue__eyebrow">Sudah dikonfirmasi</span>
           <span className="resolved-queue__count">{resolvedTotal} baris</span>
           <ChevronDown className={`resolved-queue__chevron${resolvedOpen ? " is-open" : ""}`} aria-hidden size={16} />
         </button>
-        {resolvedOpen ? (
+        {/* Always mounted so it can slide up on close; inert while closed. */}
+        <div id="resolved-queue-body" className="collapse" data-open={resolvedOpen} inert={!resolvedOpen}><div className="collapse__inner">
           <div className="resolved-queue__body" aria-label="Baris yang sudah dikonfirmasi">
-            <p className="resolved-queue__hint">Memperbaiki kesalahan: batalkan kecocokan untuk mengembalikan baris ke antrean pemeriksaan.</p>
+            {/* `reopen` is only provided while the batch is not finalized (decisions are locked after finalization). */}
+            <p className="resolved-queue__hint">{reopen ? "Memperbaiki kesalahan: batalkan kecocokan untuk mengembalikan baris ke antrean pemeriksaan." : "Batch sudah difinalisasi, jadi kecocokan tidak dapat dibatalkan lagi. Hubungi admin untuk koreksi data."}</p>
             <div className="resolved-queue__search">
               <label htmlFor="resolved-search">Cari nama di baris terkonfirmasi</label>
               <input id="resolved-search" type="search" className="review-search-input" placeholder="Cari nama…" value={resolvedSearchInput} onChange={(e) => handleResolvedSearchChange(e.target.value)} />
             </div>
+            {/* Same audit-table pattern as "Peringatan sumber". The action column only
+                exists while the batch is not finalized. */}
             {resolvedMatches?.isLoading ? <p className="muted" role="status">Memuat baris terkonfirmasi…</p>
               : resolvedRows.length ? (
-                <div className="resolved-queue__list">
-                  {resolvedRows.map((match) => {
-                    const meta = resolvedRowMeta(match);
-                    return (
-                      <div key={match.ID} className="resolved-row">
-                        <div>
-                          <strong>{meta.name || "Nama tidak terbaca"}</strong>
-                          {meta.position || meta.location ? <small>{[meta.position, meta.location].filter(Boolean).join(" · ")}</small> : null}
-                        </div>
-                        {reopen ? <Button type="button" variant="secondary" onClick={() => { setReopenMode("confirmed"); setReopenFor(match); }}>
-                          Batalkan kecocokan
-                        </Button> : null}
-                      </div>
-                    );
-                  })}
+                <div className="table-wrap review-table">
+                  <table className="data-table">
+                    <caption className="sr-only">Baris payroll yang sudah dikonfirmasi</caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Nama di PDF</th>
+                        <th scope="col">Jabatan</th>
+                        <th scope="col">Lokasi</th>
+                        <th scope="col" className="num">Neto PDF</th>
+                        {reopen ? <th scope="col"><span className="sr-only">Aksi</span></th> : null}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {resolvedRows.map((match) => {
+                        const meta = resolvedRowMeta(match);
+                        return (
+                          <tr key={match.ID}>
+                            <td className="review-table__name">{meta.name || "Nama tidak terbaca"}</td>
+                            <td className="review-table__muted">{meta.position || "—"}</td>
+                            <td className="review-table__muted">{meta.location || "—"}</td>
+                            <td className="num review-table__amount">{formatCurrency(match.Row.GajiDiterima ?? match.Row.net_amount)}</td>
+                            {reopen ? <td className="review-table__action">
+                              <Button type="button" variant="secondary" aria-label={`Batalkan kecocokan ${meta.name || "baris ini"}`} onClick={() => { setReopenMode("confirmed"); setReopenFor(match); }}>
+                                Batalkan kecocokan
+                              </Button>
+                            </td> : null}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               ) : <p className="resolved-queue__empty">{resolvedSearch.trim() ? "Tidak ada nama yang cocok." : "Belum ada baris yang dikonfirmasi di halaman ini."}</p>}
-            <Pagination page={resolvedPage} pageSize={5} total={resolvedTotal} onChange={(page) => setResolvedPage(Math.min(Math.max(1, page), lastResolvedPage))} />
+            <RangePagination page={resolvedPage} pageSize={5} total={resolvedTotal} loadingPage={resolvedMatches?.isFetching ? resolvedPage : null} onChange={(page) => setResolvedPage(Math.min(Math.max(1, page), lastResolvedPage))} ariaLabel="Paginasi baris terkonfirmasi" />
           </div>
-        ) : null}
+        </div></div>
       </div> : null}
     {showRejectedSection ? <div className="resolved-queue rejected-queue">
-      <button type="button" className="resolved-queue__toggle" aria-expanded={rejectedOpen} onClick={() => setRejectedOpen((value) => !value)}>
+      <button type="button" className="resolved-queue__toggle" aria-expanded={rejectedOpen} aria-controls="rejected-queue-body" onClick={() => setRejectedOpen((value) => !value)}>
         <span className="resolved-queue__eyebrow">Dikeluarkan</span>
         <span className="resolved-queue__count">{rejectedTotal == null ? (rejectedMatches.isError ? "Gagal dimuat" : "Memuat…") : `${rejectedTotal} baris`}</span>
         <ChevronDown className={`resolved-queue__chevron${rejectedOpen ? " is-open" : ""}`} aria-hidden size={16} />
       </button>
-      {rejectedOpen ? <div className="resolved-queue__body" aria-label="Baris yang dikeluarkan">
+      <div id="rejected-queue-body" className="collapse" data-open={rejectedOpen} inert={!rejectedOpen}><div className="collapse__inner">
+      <div className="resolved-queue__body" aria-label="Baris yang dikeluarkan">
         <p className="resolved-queue__hint">Riwayat baris yang tidak disertakan dalam payroll dan ekspor bank batch ini.</p>
         {rejectedMatches.isLoading || (rejectedMatches.isFetching && !rejectedMatches.data) ? <p className="muted" role="status">Memuat baris yang dikeluarkan…</p>
           : rejectedMatches.isError ? <div className="range-pager-retry"><span>Gagal memuat baris yang dikeluarkan.</span><Button variant="secondary" onClick={retryRejectedPage}>Coba lagi</Button></div>
-            : rejectedRows.length ? <div className="resolved-queue__list">
-              {rejectedRows.map((match) => {
-                const meta = resolvedRowMeta(match);
-                return <div key={match.ID} className="resolved-row rejected-row">
-                  <div>
-                    <strong>{meta.name || "Nama tidak terbaca"}</strong>
-                    {meta.position || meta.location ? <small>{[meta.position, meta.location].filter(Boolean).join(" · ")}</small> : null}
-                    <span className="rejected-row__amount">{formatCurrency(match.Row.GajiDiterima ?? match.Row.net_amount)}</span>
-                    <p>{match.ReviewReason?.trim() || "Alasan tidak tercatat"}</p>
-                  </div>
-                  {reopen ? <Button type="button" variant="secondary" onClick={() => { setReopenMode("rejected"); setReopenFor(match); }}>Periksa kembali</Button> : null}
-                </div>;
-              })}
+            : rejectedRows.length ? <div className="table-wrap review-table">
+              <table className="data-table">
+                <caption className="sr-only">Baris payroll yang dikeluarkan</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Nama di PDF</th>
+                    <th scope="col">Lokasi</th>
+                    <th scope="col" className="num">Neto PDF</th>
+                    <th scope="col">Alasan</th>
+                    {reopen ? <th scope="col"><span className="sr-only">Aksi</span></th> : null}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rejectedRows.map((match) => {
+                    const meta = resolvedRowMeta(match);
+                    return <tr key={match.ID}>
+                      <td className="review-table__name">{meta.name || "Nama tidak terbaca"}</td>
+                      <td className="review-table__muted">{meta.location || "—"}</td>
+                      <td className="num review-table__amount">{formatCurrency(match.Row.GajiDiterima ?? match.Row.net_amount)}</td>
+                      <td className="review-table__reason">{match.ReviewReason?.trim() || "Alasan tidak tercatat"}</td>
+                      {reopen ? <td className="review-table__action">
+                        <Button type="button" variant="secondary" aria-label={`Periksa kembali ${meta.name || "baris ini"}`} onClick={() => { setReopenMode("rejected"); setReopenFor(match); }}>Periksa kembali</Button>
+                      </td> : null}
+                    </tr>;
+                  })}
+                </tbody>
+              </table>
             </div> : <p className="resolved-queue__empty">Belum ada baris yang dikeluarkan.</p>}
-        {rejectedTotal != null ? <Pagination page={rejectedPage} pageSize={5} total={rejectedTotal} onChange={(page) => setRejectedPage(Math.min(Math.max(1, page), lastRejectedPage))} /> : null}
-      </div> : null}
+        {rejectedTotal != null ? <RangePagination page={rejectedPage} pageSize={5} total={rejectedTotal} loadingPage={rejectedMatches.isFetching ? rejectedPage : null} onChange={(page) => setRejectedPage(Math.min(Math.max(1, page), lastRejectedPage))} ariaLabel="Paginasi baris yang dikeluarkan" /> : null}
+      </div>
+      </div></div>
     </div> : null}
     {reopen && reopenFor ? <ReopenMatchDialog
       open
