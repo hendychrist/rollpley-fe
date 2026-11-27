@@ -70,9 +70,14 @@ export function BatchDetail({ id, reviewId, reviewPage = 1, reviewFilter = "all"
   const [periodYear, setPeriodYear] = useState("");
   const [showPeriodDialog, setShowPeriodDialog] = useState(false);
   const lastErrorRef = useRef<ApiClientError | null>(null);
+  // Operations owned by this component's guard(). The ref is the synchronous
+  // lock; the state drives rendering. Review decisions are NOT guarded here
+  // (they are scoped per finding card), so they never make these controls busy.
   const activeOperationRef = useRef<Operation | null>(null);
-  const activeOperation = activeOperationRef.current;
-  const activeBusy = state.busy && activeOperation !== null;
+  const [activeOperation, setActiveOperation] = useState<Operation | null>(null);
+  const activeBusy = activeOperation !== null;
+  // Handler-level lock for the whole finalize → export flow, acquired before window.confirm.
+  const finalizingRef = useRef(false);
   const bulkDownload = usePayrollExportDownloads(id);
 
   // The File bank shows one current record per bank group (newest first).
@@ -81,11 +86,13 @@ export function BatchDetail({ id, reviewId, reviewPage = 1, reviewFilter = "all"
   const allReady = allExportsReady(state.exportsQuery.data);
 
   function guard<T>(operation: Operation, fn: () => Promise<T>) {
-    if (state.busy) return Promise.reject(lastErrorRef.current ?? getApiError(new Error("Another payroll action is already in progress. Check the latest server state before trying again.")));
+    if (activeOperationRef.current !== null) return Promise.reject(lastErrorRef.current ?? getApiError(new Error("Another payroll action is already in progress. Check the latest server state before trying again.")));
     activeOperationRef.current = operation;
+    setActiveOperation(operation);
+    const release = () => { activeOperationRef.current = null; setActiveOperation(null); };
     return fn()
-      .then((value) => { lastErrorRef.current = null; activeOperationRef.current = null; return value; })
-      .catch((reason) => { lastErrorRef.current = getApiError(reason); activeOperationRef.current = null; throw reason; });
+      .then((value) => { lastErrorRef.current = null; release(); return value; })
+      .catch((reason) => { lastErrorRef.current = getApiError(reason); release(); throw reason; });
   }
 
   if (state.batch.isLoading) return <div className="content-wrap"><Skeleton lines={7} /></div>;
@@ -132,14 +139,20 @@ export function BatchDetail({ id, reviewId, reviewPage = 1, reviewFilter = "all"
   // If export generation fails, the reviewer can retry just the export
   // via the "Buat / coba ulang ekspor" button without re-finalizing.
   async function handleFinalizeAndExport() {
-    if (!window.confirm("Finalisasi bersifat utuh dan tidak dapat diubah. Lanjutkan hanya jika seluruh ringkasan sudah benar.")) return;
-    setFinalizePhase("finalizing");
-    const finalizeOk = await guard("finalize", () => state.finalize()).catch(() => false);
-    if (finalizeOk) {
-      setFinalizePhase("exporting");
-      await guard("generate", () => state.generate()).catch(() => undefined);
+    if (finalizingRef.current || activeOperationRef.current !== null) return;
+    finalizingRef.current = true;
+    try {
+      if (!window.confirm("Finalisasi bersifat utuh dan tidak dapat diubah. Lanjutkan hanya jika seluruh ringkasan sudah benar.")) return;
+      setFinalizePhase("finalizing");
+      const finalizeOk = await guard("finalize", () => state.finalize()).catch(() => false);
+      if (finalizeOk) {
+        setFinalizePhase("exporting");
+        await guard("generate", () => state.generate()).catch(() => undefined);
+      }
+    } finally {
+      finalizingRef.current = false;
+      setFinalizePhase("idle");
     }
-    setFinalizePhase("idle");
   }
 
   async function startProcessing() { await guard("start", () => state.start()).catch(() => undefined); }
@@ -199,7 +212,7 @@ export function BatchDetail({ id, reviewId, reviewPage = 1, reviewFilter = "all"
     {batch.status === "uploaded" && !processing?.Status ? (
       <Panel className="next-action">
         <div><h2>PDF siap diproses</h2><p>Backend akan membaca dokumen dan mencocokkan identitas dengan master karyawan.</p></div>
-        <Button onClick={() => void startProcessing()} loading={activeBusy} loadingLabel={OPERATION_LABELS.start}><Play size={17} />Mulai pencocokan</Button>
+        <Button onClick={() => void startProcessing()} loading={activeOperation === "start"} disabled={activeBusy} loadingLabel={OPERATION_LABELS.start}><Play size={17} />Mulai pencocokan</Button>
       </Panel>
     ) : null}
 
@@ -336,8 +349,8 @@ export function BatchDetail({ id, reviewId, reviewPage = 1, reviewFilter = "all"
                   <Button variant="secondary" onClick={() => { setShowPeriodDialog(false); setPeriodMonth(""); setPeriodYear(""); setPeriodError(null); }}>Batal</Button>
                   <Button
                     onClick={() => void handleConfirmPeriod()}
-                    disabled={!periodMonth || !periodYear || (activeBusy && activeOperation === "confirmPeriod")}
-                    loading={activeBusy && activeOperation === "confirmPeriod"}
+                    disabled={!periodMonth || !periodYear || activeBusy}
+                    loading={activeOperation === "confirmPeriod"}
                     loadingLabel={OPERATION_LABELS.confirmPeriod}
                   >
                     <CalendarClock size={16} />Simpan periode
@@ -391,7 +404,7 @@ export function BatchDetail({ id, reviewId, reviewPage = 1, reviewFilter = "all"
               <p>{reconciliationCurrent ? "Finalisasi membuat snapshot tetap untuk seluruh batch. Jika satu baris tidak valid, tidak ada bagian batch yang difinalkan." : "Menunggu rekonsiliasi terbaru sebelum kelayakan finalisasi dapat dipastikan."}</p>
               <Button
                 onClick={() => void handleFinalizeAndExport()}
-                loading={finalizePhase !== "idle" || activeBusy}
+                loading={finalizePhase !== "idle"}
                 loadingLabel={finalizePhase === "exporting" ? OPERATION_LABELS.generate : finalizePhase === "finalizing" ? OPERATION_LABELS.finalizeAndExport : undefined}
                 disabled={!reconciliationCurrent || !reconciliation.finalizable || finalizePhase !== "idle" || activeBusy}
               >
@@ -421,8 +434,9 @@ export function BatchDetail({ id, reviewId, reviewPage = 1, reviewFilter = "all"
           ) : (
             <Button
               onClick={() => void generateExports()}
-              loading={activeBusy || state.hasActiveExportRow}
-              loadingLabel={activeBusy ? OPERATION_LABELS.generate : "Sedang membuat file…"}
+              loading={activeOperation === "generate" || state.hasActiveExportRow}
+              loadingLabel={activeOperation === "generate" ? OPERATION_LABELS.generate : "Sedang membuat file…"}
+              disabled={activeBusy}
             >
               <RefreshCw size={17} />Buat / coba ulang ekspor
             </Button>

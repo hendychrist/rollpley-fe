@@ -21,6 +21,9 @@ function NewEmployeeForm({ sourceName, create, onCreated, busy, createError, pan
   const [open, setOpen] = useState(false);
   const [closed, setClosed] = useState(true);
   const [formError, setFormError] = useState<string | null>(null);
+  // Local pending state: only this form's "Simpan" shows a spinner. `busy`
+  // (another guarded payroll operation) only locks it, without a misleading label.
+  const [submitting, setSubmitting] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const submittingRef = useRef(false);
   const reducedMotionRef = useRef(false);
@@ -49,6 +52,7 @@ function NewEmployeeForm({ sourceName, create, onCreated, busy, createError, pan
     if (submittingRef.current || busy) return;
     const form = event.currentTarget;
     submittingRef.current = true;
+    setSubmitting(true);
     setFormError(null);
     try {
       const data = new FormData(form);
@@ -62,7 +66,7 @@ function NewEmployeeForm({ sourceName, create, onCreated, busy, createError, pan
       });
       if (employee) { onCreated(employee); form.reset(); setOpen(false); setFormError(null); }
       else setFormError(createError ?? "Gagal menyimpan data karyawan. Coba lagi.");
-    } finally { submittingRef.current = false; }
+    } finally { submittingRef.current = false; setSubmitting(false); }
   }
 
   const formPanelId = `${panelId}-new-employee`;
@@ -97,10 +101,10 @@ function NewEmployeeForm({ sourceName, create, onCreated, busy, createError, pan
             </div>
             {formError ? <Alert tone="error">{formError}</Alert> : null}
             <div className="payroll-employee-form__actions">
-              <Button type="button" className="payroll-employee-form__cancel" onClick={() => setOpen(false)} disabled={busy}>
+              <Button type="button" className="payroll-employee-form__cancel" onClick={() => setOpen(false)} disabled={busy || submitting}>
                 Batal
               </Button>
-              <Button type="submit" loading={busy} loadingLabel="Menyimpan…">
+              <Button type="submit" loading={submitting} disabled={busy} loadingLabel="Menyimpan…">
                 Simpan
               </Button>
             </div>
@@ -177,13 +181,16 @@ export function ExceptionReview({ match, order, batchId, period, returnTo, open,
   const [saved, setSaved] = useState(false);
   const [decisionMode, setDecisionMode] = useState<"confirm" | "exclude" | null>(null);
   // saveAlias was removed — alias is auto-saved when confirming a suggestion
-  // candidate. skipAliasRef handles the "Cocokkan sekali" retry path.
+  // candidate. "Cocokkan sekali" passes skipAlias=true to decide() for the retry path.
   const [aliasConflict, setAliasConflict] = useState<AliasConflictDetail | null>(null);
   const [aliasDialog, setAliasDialog] = useState(false);
+  // Synchronous in-flight lock for this card's review PATCH. Held from
+  // activation until the success flow has called onResolved(), or released
+  // immediately on failure.
   const decidingRef = useRef(false);
-  // Set to true when "Cocokkan sekali" is pressed: the next decide() call
-  // skips alias saving even though canSaveAlias would normally trigger it.
-  const skipAliasRef = useRef(false);
+  // Which decision control of this card initiated the in-flight PATCH.
+  // Scoped per card: other finding cards stay usable.
+  const [pendingDecision, setPendingDecision] = useState<"confirm" | "confirm-once" | "exclude" | null>(null);
   const reasonRef = useRef<HTMLTextAreaElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -331,22 +338,25 @@ export function ExceptionReview({ match, order, batchId, period, returnTo, open,
 
   // "Cocokkan sekali" — confirm the match without saving the alias.
   // Used when the alias conflicts with another employee (409 CONFLICT).
+  // The skip flag is passed as an argument (not a ref), so a blocked
+  // invocation can never leave a stale "skip alias" behind for the next decision.
   function confirmOnce() {
-    skipAliasRef.current = true;
+    if (decidingRef.current) return;
     setAliasConflict(null);
-    void decide("auto_matched");
+    void decide("auto_matched", true);
   }
 
-  async function decide(status: "auto_matched" | "rejected") {
+  async function decide(status: "auto_matched" | "rejected", skipAlias = false) {
     if (decidingRef.current) return;
     setValidation(null);
     setAliasConflict(null);
     setAliasAction("none");
-    const skipAlias = skipAliasRef.current;
-    skipAliasRef.current = false;
     if (!reason.trim()) { reasonRef.current?.focus(); return setValidation("Alasan keputusan wajib diisi."); }
     if (status === "auto_matched" && !selectedId) return setValidation("Pilih satu kandidat karyawan terlebih dahulu.");
+    // Acquire the lock and show pending synchronously, before any async work.
     decidingRef.current = true;
+    setPendingDecision(status === "rejected" ? "exclude" : skipAlias ? "confirm-once" : "confirm");
+    let keepLockedUntilResolved = false;
     try {
       // Alias is auto-saved when confirming a suggestion candidate whose
       // PDF source name differs from the master name (canSaveAlias=true),
@@ -364,10 +374,15 @@ export function ExceptionReview({ match, order, batchId, period, returnTo, open,
         setSaved(true);
         const alias = result.result.alias;
         if (alias) setAliasAction(alias.action);
+        // Keep the decision locked through the completion delay: there is no
+        // re-entry window between a successful PATCH and onResolved().
+        keepLockedUntilResolved = true;
         window.setTimeout(() => {
           setReason(""); setSelectedId(null); setDecisionMode(null);
           setAliasAction("none"); setAliasConflict(null);
           onResolved();
+          decidingRef.current = false;
+          setPendingDecision(null);
         }, 240);
       } else {
         // 409 CONFLICT — BE rolls back the match decision when the alias
@@ -386,7 +401,10 @@ export function ExceptionReview({ match, order, batchId, period, returnTo, open,
           setValidation(msg || "Gagal menyimpan keputusan. Coba lagi.");
         }
       }
-    } finally { decidingRef.current = false; }
+    } finally {
+      // Failure (or unexpected throw): release immediately so the card stays actionable.
+      if (!keepLockedUntilResolved) { decidingRef.current = false; setPendingDecision(null); }
+    }
   }
 
   const startExclusion = () => {
@@ -602,7 +620,7 @@ export function ExceptionReview({ match, order, batchId, period, returnTo, open,
                               : <>Alias &ldquo;{aliasConflict.alias_name ?? sourceName}&rdquo; tidak dapat disimpan — bentrok dengan data master.</>}
                         </span>
                         <div className="alias-option__actions">
-                          <Button type="button" variant="secondary" onClick={confirmOnce}>
+                          <Button type="button" variant="secondary" onClick={confirmOnce} loading={pendingDecision === "confirm-once"} loadingLabel="Menyimpan keputusan…" disabled={pendingDecision !== null}>
                             Cocokkan sekali
                           </Button>
                           {removeAlias ? (
@@ -635,15 +653,15 @@ export function ExceptionReview({ match, order, batchId, period, returnTo, open,
               <span><ShieldAlert aria-hidden size={17} />Keputusan hanya tersimpan setelah dikonfirmasi.</span>
               <div>
                 <Button type="button" variant="ghost" onClick={onClose}>Periksa nanti</Button>
-                <Button type="button" variant="secondary" onClick={startExclusion} loading={busy && decisionMode === "exclude"} loadingLabel="Menyimpan keputusan…">
+                <Button type="button" variant="secondary" onClick={startExclusion} loading={pendingDecision === "exclude"} loadingLabel="Menyimpan keputusan…" disabled={pendingDecision !== null}>
                   {decisionMode === "exclude" ? "Keluarkan temuan" : "Keluarkan dengan alasan"}
                 </Button>
                 <Button
                   type="button"
                   onClick={() => void decide("auto_matched")}
-                  loading={busy && decisionMode === "confirm"}
+                  loading={pendingDecision === "confirm"}
                   loadingLabel="Menyimpan keputusan…"
-                  disabled={!selectedId || decisionMode !== "confirm"}
+                  disabled={!selectedId || decisionMode !== "confirm" || pendingDecision !== null}
                 >
                   {selectedCandidate ? `Konfirmasi ${selectedCandidate.official_name}` : "Konfirmasi kecocokan"}
                 </Button>

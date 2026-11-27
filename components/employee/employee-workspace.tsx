@@ -1,7 +1,7 @@
 "use client";
 import { Plus, Search, X } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Button } from "@/components/base/button";
 import { BaseErrorState } from "@/components/base/error-state";
 import { EmptyState } from "@/components/base/empty-state";
@@ -22,6 +22,13 @@ import { useEmployeeList } from "@/hooks/use-employee";
 export function EmployeeWorkspace() {
   const list = useEmployeeList();
   const [creating, setCreating] = useState(false);
+  // While POST /employees is in flight the dialog cannot be dismissed, so a
+  // failure stays visible with the entered values. Ref = synchronous check,
+  // state = disabled rendering of the × button.
+  const createPendingRef = useRef(false);
+  const [createPending, setCreatePending] = useState(false);
+  const handleCreateSubmitting = useCallback((submitting: boolean) => { createPendingRef.current = submitting; setCreatePending(submitting); }, []);
+  const dismissCreate = () => { if (!createPendingRef.current) setCreating(false); };
   const isFiltered = Boolean(list.search || list.status);
 
   return (
@@ -182,7 +189,7 @@ export function EmployeeWorkspace() {
           role="presentation"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) {
-              setCreating(false);
+              dismissCreate();
             }
           }}
         >
@@ -202,14 +209,17 @@ export function EmployeeWorkspace() {
 
               <button
                 type="button"
-                onClick={() => setCreating(false)}
+                onClick={dismissCreate}
+                disabled={createPending}
                 aria-label="Tutup"
               >
                 <X aria-hidden="true" />
               </button>
             </header>
 
-            <EmployeeForm onClose={() => setCreating(false)} />
+            {/* onClose is also the success path (useEmployeeCreate), so it stays
+                unguarded; "Batal" inside the form is disabled while pending. */}
+            <EmployeeForm onClose={() => setCreating(false)} onSubmittingChange={handleCreateSubmitting} />
           </section>
         </div>
       ) : null}

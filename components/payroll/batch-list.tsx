@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
-import { Trash2, X } from "lucide-react";
+import Link, { useLinkStatus } from "next/link";
+import { LoaderCircle, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "@/components/base/alert";
 import { Button } from "@/components/base/button";
@@ -187,12 +187,26 @@ export function BatchList() {
   </>;
 }
 
+// Rendered inside the row's <Link>: useLinkStatus() reports pending only for
+// this link, so just the clicked batch shows "Membuka batch…" while the route
+// transition (middleware + RSC) is in flight. Other rows are unaffected.
+function BatchRowLinkContent({ batch }: { batch: PayrollBatch }) {
+  const { pending } = useLinkStatus();
+  const subtitle = [batch.period ? periodLabel(batch.period) : null, batch.unit || null].filter(Boolean).join(" · ");
+  return <>
+    <span className="batch-row__identity" aria-busy={pending}>
+      <strong>{pending ? <LoaderCircle aria-hidden className="spin" size={14} style={{ marginRight: 6, verticalAlign: "-2px" }} /> : null}{batch.original_filename}</strong>
+      <small aria-live="polite">{pending ? "Membuka batch…" : subtitle}</small>
+    </span>
+    <span className="batch-row__meta"><StatusBadge label={BATCH_STATUS[batch.status] ?? batch.status} tone={statusTone(batch.status)} /><small>Diperbarui {formatDateTime(batch.updated_at)}</small></span>
+  </>;
+}
+
 function BatchRow({ batch, selectionMode, selected, toggle }: { batch: PayrollBatch; selectionMode: boolean; selected: boolean; toggle: (id: string) => void }) {
   return <article className={`batch-row ${selected ? "batch-row--selected" : ""}`}>
     {selectionMode && batch.can_delete ? <label className="batch-checkbox"><input type="checkbox" checked={selected} onChange={() => toggle(batch.id)} /><span className="sr-only">Pilih batch {batch.original_filename}, {formatDateTime(batch.updated_at)}</span></label> : null}
     <Link href={`/payroll/${batch.id}`} className="batch-row__link">
-      <span className="batch-row__identity"><strong>{batch.original_filename}</strong><small>{[batch.period ? periodLabel(batch.period) : null, batch.unit || null].filter(Boolean).join(" · ")}</small></span>
-      <span className="batch-row__meta"><StatusBadge label={BATCH_STATUS[batch.status] ?? batch.status} tone={statusTone(batch.status)} /><small>Diperbarui {formatDateTime(batch.updated_at)}</small></span>
+      <BatchRowLinkContent batch={batch} />
     </Link>
     {selectionMode && !batch.can_delete && batch.delete_block_reason ? <small className="batch-block-reason">{BLOCK_REASON[batch.delete_block_reason]}</small> : null}
   </article>;
