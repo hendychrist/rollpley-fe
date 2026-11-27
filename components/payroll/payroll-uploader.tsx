@@ -1,6 +1,6 @@
 "use client";
 import { FileText, Paperclip, Trash2 } from "lucide-react";
-import { type DragEvent, type FormEvent, useState } from "react";
+import type { DragEvent, FormEvent } from "react";
 import { BaseInlineError } from "@/components/base/error-state";
 import { Button } from "@/components/base/button";
 import { StateIllustration } from "@/components/base/state-illustration";
@@ -8,11 +8,10 @@ import { usePayrollUpload } from "@/hooks/use-payroll-upload";
 import { formatBytes } from "@/utils/format";
 
 export function PayrollUploader() {
-  const state = usePayrollUpload(); const [period, setPeriod] = useState("");
+  const state = usePayrollUpload();
   function drop(event: DragEvent<HTMLDivElement>) { event.preventDefault(); state.setDragging(false); state.selectFile(event.dataTransfer.files.item(0)); }
-  function submit(event: FormEvent) { event.preventDefault(); void state.upload(period || undefined); }
+  function submit(event: FormEvent) { event.preventDefault(); void state.upload(); }
   return <form onSubmit={submit} className="upload-workspace">
-    <div className="upload-fields"><label>Periode<input type="month" value={period} onChange={(event) => setPeriod(event.target.value)} /></label></div>
     <div className={`dropzone ${state.dragging ? "dropzone--dragging" : ""}`} onDragEnter={(event) => { event.preventDefault(); state.setDragging(true); }} onDragOver={(event) => event.preventDefault()} onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) state.setDragging(false); }} onDrop={drop}>
       <input ref={state.inputRef} className="sr-only" type="file" accept="application/pdf,.pdf" onChange={(event) => state.selectFile(event.target.files?.item(0) ?? null)} /><StateIllustration variant="upload" size={72} /><h2>{state.dragging ? "Lepaskan PDF di sini" : "Unggah PDF payroll"}</h2><p>{state.dragging ? "PDF akan divalidasi sebelum diunggah" : "Tarik berkas ke sini atau pilih PDF rekap payroll"}</p><Button type="button" variant="secondary" onClick={() => state.inputRef.current?.click()}><Paperclip size={17} />Pilih PDF</Button>
     </div>

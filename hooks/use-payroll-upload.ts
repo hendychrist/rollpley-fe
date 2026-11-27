@@ -33,7 +33,7 @@ export function usePayrollUpload() {
     }
     idempotencyRef.current = null; payloadSignatureRef.current = null;
   }
-  async function upload(period?: string) {
+  async function upload() {
     if (uploadGuardRef.current) return;
     if (!file) return setError(normalizeApiError({ status: 400, data: { message: "Select a payroll PDF before continuing.", error: { code: "PAYROLL_FILE_REQUIRED" }, data: null, meta: null } }, { method: "POST", endpoint: "/payroll/batches" }));
     const fileIssue = validatePayrollFile(file);
@@ -41,10 +41,10 @@ export function usePayrollUpload() {
       const status = file.size > 20 * 1024 * 1024 ? 413 : 415;
       return setError(normalizeApiError({ status, data: { message: fileIssue, error: { code: status === 413 ? "FILE_TOO_LARGE" : "UNSUPPORTED_FILE_TYPE" }, data: null, meta: null } }, { method: "POST", endpoint: "/payroll/batches" }));
     }
-    if (period && !/^\d{4}-\d{2}$/.test(period)) return setError(normalizeApiError({ status: 400, data: { message: "Payroll period must use YYYY-MM.", error: { code: "PAYROLL_PERIOD_INVALID" }, data: null, meta: null } }, { method: "POST", endpoint: "/payroll/batches" }));
-    const signature = `${file.name}:${file.size}:${file.lastModified}:${period ?? ""}`;
+    // Period is not sent from the upload screen (same payload as the previously working empty-period case).
+    const signature = `${file.name}:${file.size}:${file.lastModified}`;
     if (payloadSignatureRef.current !== signature) { idempotencyRef.current = crypto.randomUUID(); payloadSignatureRef.current = signature; }
-    const body = new FormData(); body.append("file", file); if (period) body.append("period", period);
+    const body = new FormData(); body.append("file", file);
     uploadGuardRef.current = true; setUploading(true); setError(null);
     try {
       const response = await uploadMultipart<PayrollBatch>({ path: "/payroll/batches", formData: body, headers: { "Idempotency-Key": idempotencyRef.current! }, onProgress: setProgress });

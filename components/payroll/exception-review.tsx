@@ -351,7 +351,8 @@ export function ExceptionReview({ match, order, batchId, period, returnTo, open,
     setValidation(null);
     setAliasConflict(null);
     setAliasAction("none");
-    if (!reason.trim()) { reasonRef.current?.focus(); return setValidation("Alasan keputusan wajib diisi."); }
+    // A reason is required only for exclusion; for a confirmation the selected employee is the decision and the reason is optional.
+    if (status === "rejected" && !reason.trim()) { reasonRef.current?.focus(); return setValidation("Alasan keputusan wajib diisi."); }
     if (status === "auto_matched" && !selectedId) return setValidation("Pilih satu kandidat karyawan terlebih dahulu.");
     // Acquire the lock and show pending synchronously, before any async work.
     decidingRef.current = true;
@@ -591,12 +592,12 @@ export function ExceptionReview({ match, order, batchId, period, returnTo, open,
             {decisionMode === "confirm" ? (
               <section className="decision-reason">
                 <div>
-                  <h4>Alasan keputusan</h4>
-                  <p>Jelaskan bukti yang mendukung kecocokan dengan {selectedCandidate?.official_name ?? "kandidat ini"}.</p>
+                  <h4>Alasan keputusan (opsional)</h4>
+                  <p>Tambahkan catatan bukti kecocokan dengan {selectedCandidate?.official_name ?? "kandidat ini"} bila diperlukan.</p>
                 </div>
                 <label>
-                  <span className="sr-only">Alasan keputusan</span>
-                  <textarea ref={reasonRef} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Tuliskan bukti HR yang digunakan" required />
+                  <span className="sr-only">Alasan keputusan (opsional)</span>
+                  <textarea ref={reasonRef} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Tuliskan bukti HR yang digunakan (opsional)" />
                 </label>
                 {/* Alias auto-saved on confirm when a suggestion candidate is
                     selected and PDF source name differs from master name.
