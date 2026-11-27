@@ -192,3 +192,33 @@ em.muted {
   .issue-ref { min-width: 0; }
   .issue-delta { min-width: 0; margin-left: auto; }
 }
+
+/* Source arithmetic warnings: informational, collapsed by default.
+   Neutral cards; warning color only on the icon and the nominal badge. */
+.source-warnings { margin-top: 18px; }
+.source-warnings__toggle { align-items: flex-start; }
+.source-warnings__icon { flex: none; margin-top: 2px; color: var(--warning); }
+.source-warnings__summary { display: grid; gap: 2px; min-width: 0; }
+.source-warnings__hint { color: var(--text-secondary); font-size: .76rem; }
+.source-warnings__action { margin-left: auto; color: var(--brand-primary); font-size: .78rem; font-weight: 700; white-space: nowrap; }
+.source-warnings__toggle .resolved-queue__chevron { margin-left: 0; margin-top: 2px; }
+.source-warnings__filters { justify-self: start; }
+.source-warnings__list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.source-warning { display: grid; gap: 8px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--border-default); border-radius: 10px; }
+.source-warning__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.source-warning__ref { font-weight: 600; color: var(--text-heading); font-size: .84rem; }
+.source-warning__badge { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 999px; font-size: .72rem; font-weight: 600; white-space: nowrap; }
+.source-warning__badge--nominal { background: var(--warning-soft); color: var(--warning); }
+.source-warning__badge--rounding { background: var(--surface-muted); color: var(--text-secondary); border: 1px solid var(--border-default); }
+.source-warning__amounts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; margin: 0; }
+.source-warning__amounts > div { display: grid; gap: 1px; }
+.source-warning__amounts dt { color: var(--text-secondary); font-size: .72rem; }
+.source-warning__amounts dd { margin: 0; font-variant-numeric: tabular-nums; color: var(--text-body); font-size: .84rem; }
+.source-warning__net dd { color: var(--text-heading); font-weight: 700; font-size: .95rem; }
+.source-warning__reason { margin: 0; color: var(--text-secondary); font-size: .8rem; overflow-wrap: anywhere; }
+.source-warnings .range-pager { padding-top: 4px; }
+@media (max-width: 480px) {
+  .source-warnings__toggle { flex-wrap: wrap; }
+  .source-warnings__action { margin-left: 28px; }
+  .source-warning__amounts { grid-template-columns: 1fr; }
+}

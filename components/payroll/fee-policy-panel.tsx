@@ -45,7 +45,7 @@ export function FeePolicyPanel() {
   }
 
   return <Panel className="fee-policy">
-    <div className="section-heading"><div><h2>Kebijakan biaya</h2><p>Ini adalah versi administrasi terbaru. Finalisasi tetap memilih kebijakan terkonfirmasi berdasarkan periode batch.</p></div><Button variant="secondary" onClick={() => setEditing((value) => !value)}>{editing ? "Tutup" : "Buat versi baru"}</Button></div>
+    <div className="section-heading"><div><h2>Kebijakan biaya</h2><p>Ini adalah versi administrasi terbaru. Finalisasi memakai kebijakan terkonfirmasi yang sedang berlaku; periode batch hanya untuk pencatatan.</p></div><Button variant="secondary" onClick={() => setEditing((value) => !value)}>{editing ? "Tutup" : "Buat versi baru"}</Button></div>
     {state.policy.isError ? <BaseInlineError error={state.policy.error} /> : null}
     {state.error ? <BaseInlineError error={state.error} /> : null}
     {state.policy.isLoading ? <div className="fee-policy-loading" role="status"><span>Memuat kebijakan biaya…</span><Skeleton lines={1} /></div> : null}

@@ -121,7 +121,7 @@ function accountBlockerReason(reasonCode: string | undefined): string {
   if (!reasonCode) return "Identitas dapat dikonfirmasi, tetapi rekening utama belum tersedia, belum efektif, atau belum terverifikasi sehingga batch tidak dapat difinalisasi.";
   const map: Record<string, string> = {
     no_verified_primary_account: "Belum ada rekening utama yang terverifikasi. Verifikasi rekening utama karyawan sebelum finalisasi.",
-    primary_account_not_effective: "Rekening utama belum efektif untuk periode ini. Perbarui tanggal berlaku rekening.",
+    primary_account_not_effective: "Rekening utama belum berlaku saat ini. Perbarui tanggal berlaku rekening.",
     primary_account_unverified: "Rekening utama belum terverifikasi. Lakukan verifikasi rekening sebelum finalisasi.",
   };
   return map[reasonCode] ?? `Identitas dapat dikonfirmasi, tetapi batch tidak dapat difinalisasi sebelum rekening diselesaikan. Alasan: ${reasonCode}.`;

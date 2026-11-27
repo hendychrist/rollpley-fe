@@ -13,8 +13,9 @@ import { BATCH_STATUS } from "@/constants/status";
 import { usePayrollDetail } from "@/hooks/use-payroll-detail";
 import { usePayrollExportDownloads, allExportsReady, readyExportFiles, bulkDownloadProgressLabel, bulkDownloadSummary } from "@/hooks/use-payroll-export-downloads";
 import { downloadExport } from "@/utils/download";
-import { formatCurrency, formatDateTime, formatSignedCurrency, periodLabel } from "@/utils/format";
+import { formatCurrency, formatDateTime, periodLabel } from "@/utils/format";
 import { ReviewQueue } from "@/components/payroll/review-queue";
+import { SourceWarnings } from "@/components/payroll/source-warnings";
 import { getApiError } from "@/redux/api";
 import type { ApiClientError } from "@/type/api";
 import type { EmployeeInput } from "@/type/employee";
@@ -38,10 +39,9 @@ function reconciliationBlockerLabel(blocker: string): string {
     : blocker;
 }
 
+// Issue reasons are shown exactly as the backend states them (e.g. the account
+// rule now refers to the currently valid account, not the payroll period).
 function issueReasonLabel(issue: ReconciliationIssue): string {
-  if (issue.category === "missing_or_unverified_account") {
-    return "Rekening terverifikasi yang berlaku untuk periode ini belum ditemukan.";
-  }
   return issue.reason;
 }
 
@@ -173,13 +173,24 @@ export function BatchDetail({ id, reviewId, reviewPage = 1, reviewFilter = "all"
   const blockingIssues: ReconciliationIssue[] = reconciliationIssues.filter(
     (issue) => issue.severity === "blocking",
   );
+  const isSourceArithmeticCategory = (issue: ReconciliationIssue) => issue.category === "extraction_amount" || issue.category === "source_arithmetic_reviewed";
+  // gross-potongan != gaji_diterima rows: still warnings (shown in the nominal
+  // panel), but informational — the PDF net is authoritative and they never block.
+  const sourceArithmeticWarnings: ReconciliationIssue[] = reconciliationIssues.filter(
+    (issue) => issue.severity === "informational" && isSourceArithmeticCategory(issue),
+  );
   const informationalIssues: ReconciliationIssue[] = reconciliationIssues.filter(
-    (issue) => issue.severity === "informational" && issue.category !== "source_arithmetic_tolerance",
+    (issue) => issue.severity === "informational" && issue.category !== "source_arithmetic_tolerance" && !isSourceArithmeticCategory(issue),
   );
   const legacyArithmeticIssues: ReconciliationIssue[] = reconciliationIssues.filter(
-    (issue) => !issue.severity && issue.category !== "source_arithmetic_tolerance" && (issue.category === "extraction_amount" || issue.category === "source_arithmetic_reviewed"),
+    (issue) => !issue.severity && issue.category !== "source_arithmetic_tolerance" && isSourceArithmeticCategory(issue),
   );
-  const unresolvedIssues = [...blockingIssues, ...legacyArithmeticIssues];
+  // Source warnings that still genuinely block (e.g. component sum, unreadable
+  // cells, or an older backend). Detailed in their own panel, not in the alert.
+  const unresolvedIssues = [...blockingIssues.filter(isSourceArithmeticCategory), ...legacyArithmeticIssues];
+  // Per-row blockers listed in the alert: genuine non-source-arithmetic rows only (e.g. routing).
+  const blockerRowIssues = blockingIssues.filter((issue) => !isSourceArithmeticCategory(issue));
+  const hasFinalizationBlockers = Boolean(reconciliation?.blockers.length || blockingIssues.length);
 
   // transfer_total=0 with difference_known=false means the backend hasn't
   // completed the calculation yet — display "Belum dihitung", not "Rp0".
@@ -300,12 +311,12 @@ export function BatchDetail({ id, reviewId, reviewPage = 1, reviewFilter = "all"
             <span>{reconciliation.excluded_rows} dikeluarkan</span>
           </div>
 
-          {reconciliation.blockers.length || blockingIssues.length ? (
+          {hasFinalizationBlockers ? (
             <div className="blocker-actions">
               <Alert tone="warning" title="Finalisasi masih diblokir">
                 <ul>
                   {reconciliation.blockers.map((blocker) => <li key={blocker}>{reconciliationBlockerLabel(blocker)}</li>)}
-                  {blockingIssues.map((issue, index) => <li key={`${issue.category}-${issue.page}-${issue.row}-${index}`}><strong>Hal. {issue.page} · Baris {issue.row}:</strong> {issueReasonLabel(issue)}</li>)}
+                  {blockerRowIssues.map((issue, index) => <li key={`${issue.category}-${issue.page}-${issue.row}-${index}`}><strong>Hal. {issue.page} · Baris {issue.row}:</strong> {issueReasonLabel(issue)}</li>)}
                 </ul>
               </Alert>
               <div className="blocker-action-buttons">
@@ -360,21 +371,8 @@ export function BatchDetail({ id, reviewId, reviewPage = 1, reviewFilter = "all"
             </div>
           ) : null}
 
-          {toleranceIssues.length > 0 ? (
-            <div className="arithmetic-issues tolerance-issues">
-              <h3>Selisih pembulatan · {toleranceIssues.length} baris{reconciliation.rounding_delta_total != null ? ` · ${formatSignedCurrency(reconciliation.rounding_delta_total)}` : ""}</h3>
-              <p>Neto tetap mengikuti angka pada PDF.</p>
-              <div className="issue-list">
-                {toleranceIssues.map((issue, idx) => (
-                  <div key={`${issue.category}-${issue.page}-${issue.row}-${idx}`} className="issue-card issue-card--informational">
-                    <span className="issue-ref">Hal. {issue.page} · Baris {issue.row}</span>
-                    {issue.rounding_delta != null ? <span className="issue-delta">{formatSignedCurrency(issue.rounding_delta)}</span> : null}
-                    <span className="issue-reason">{issue.reason}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : null}
+          {/* Informational source warnings: collapsed summary, details on demand. */}
+          <SourceWarnings nominal={sourceArithmeticWarnings} rounding={toleranceIssues} roundingTotal={reconciliation.rounding_delta_total} />
 
           {informationalIssues.length > 0 ? (
             <div className="arithmetic-issues informational-issues">

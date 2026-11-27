@@ -13,12 +13,15 @@ export function RangePagination({
   total,
   loadingPage,
   onChange,
+  ariaLabel = "Paginasi antrean pemeriksaan",
 }: {
   page: number;
   pageSize: number;
   total: number;
   loadingPage: number | null;
   onChange: (page: number) => void;
+  /** Accessible name of the pagination landmark; defaults to the review-queue label. */
+  ariaLabel?: string;
 }) {
   if (total <= pageSize) return null;
 
@@ -72,7 +75,7 @@ export function RangePagination({
   };
 
   return (
-    <nav className="range-pager" aria-label="Paginasi antrean pemeriksaan">
+    <nav className="range-pager" aria-label={ariaLabel}>
       <span className="range-pager__summary">
         Menampilkan <strong>{start}–{end}</strong> dari <strong>{total}</strong>
       </span>

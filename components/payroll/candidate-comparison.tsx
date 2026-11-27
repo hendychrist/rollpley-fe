@@ -8,23 +8,22 @@ import { StatusBadge } from "@/components/base/status-badge";
 import { usePayrollCandidateEvidence } from "@/hooks/use-payroll-review";
 import type { BankAccount, Employee } from "@/type/employee";
 
-// Mirrors the BE rule (employee_lookup.go, bank_lookup.go, finalize.go):
-// an account is payroll-ready when it is primary, verified, and effective
-// on the current date. The most-recent effective account wins.
+// Display-only readiness hint mirroring the BE selection (payrollAccountSelectionSQL
+// in bank_lookup.go): among accounts valid today, a single primary is selected,
+// or the only current account when none is primary; it must be verified.
+// The payroll period plays no part. The backend stays authoritative.
 function readyPrimaryAccount(accounts: BankAccount[]): { account?: BankAccount; reason?: string } | null {
   const today = new Date().toISOString().slice(0, 10);
-  const primaryAccounts = accounts.filter((a) => a.is_primary);
-  if (!primaryAccounts.length) return { reason: "Belum ada rekening utama." };
-  const effective = primaryAccounts.filter((a) => a.valid_from <= today && (!a.valid_until || a.valid_until >= today));
-  if (!effective.length) {
-    const anyPrimary = primaryAccounts[0];
-    return { reason: `Rekening utama belum efektif untuk periode ini (berlaku mulai ${anyPrimary.valid_from.slice(0, 10)}).` };
+  const current = accounts.filter((a) => a.valid_from.slice(0, 10) <= today && (!a.valid_until || a.valid_until.slice(0, 10) >= today));
+  if (!current.length) {
+    const upcoming = accounts.filter((a) => a.valid_from.slice(0, 10) > today).sort((a, b) => a.valid_from.localeCompare(b.valid_from))[0];
+    return { reason: upcoming ? `Rekening belum berlaku (berlaku mulai ${upcoming.valid_from.slice(0, 10)}).` : "Belum ada rekening yang berlaku saat ini." };
   }
-  // Same ordering as BE: most recent valid_from wins
-  effective.sort((a, b) => b.valid_from.localeCompare(a.valid_from));
-  const ready = effective.find((a) => a.verification_status === "verified");
-  if (ready) return { account: ready };
-  return { reason: `Rekening utama belum terverifikasi (status: ${effective[0].verification_status}).` };
+  const primaries = current.filter((a) => a.is_primary);
+  const selected = primaries.length === 1 ? primaries[0] : primaries.length === 0 && current.length === 1 ? current[0] : null;
+  if (!selected) return { reason: "Beberapa rekening berlaku sekaligus; tetapkan satu rekening utama." };
+  if (selected.verification_status === "verified") return { account: selected };
+  return { reason: `Rekening belum terverifikasi (status: ${selected.verification_status}).` };
 }
 
 const EMPLOYMENT_LABELS: Record<Employee["employment_status"], string> = {
